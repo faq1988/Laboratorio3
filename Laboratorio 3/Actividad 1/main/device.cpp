@@ -1,4 +1,4 @@
-﻿#include "Arduino.h"
+#include "Arduino.h"
 #include "device.h"
 #include "stdio.h"
 #include "fnqueue.h"
@@ -30,10 +30,11 @@ int lastKeyDown = -1; //variable utilizada para recordar la ultima tecla presion
 int teclaPresionada = -1;
 
 //Encabezado de funciones
-int get_key(int adcValue);
+
 void key_down_function(int teclaPresionada);
 void key_up_function(int lastKeyDown);
 void procesarAdc(int adcValue); // func callback for driverADC
+int get_key(int adcValue);
 
 /*
 int adc_init(void){
@@ -74,16 +75,11 @@ int adc_init(void){
 }
 */
 
-void teclado_init(void){
-      Serial.begin(9600);
-	
-	adc_cfg cfg_A0;
-    cfg_A0.canal = 0;
-    //cfg_A0.func_callback = call_lcd_key;
-	cfg_A0.func_callback = ProcesarAdc;
-    adc_init(&cfg_A0);
-	
-    //adc_init();    
+void teclado_init(void){    	
+	  adc_cfg cfg_A0;
+    cfg_A0.canal = 0;    
+	  cfg_A0.func_callback = procesarAdc;
+    adc_init(&cfg_A0);    
 }
 
 
@@ -143,7 +139,7 @@ void key_up_function(int lastKeyDown){
   }
 }
 
-void ProcesarAdc(int adcValue){
+void procesarAdc(int adcValue){
   //Funcion que determina que tecla fue pulsada.
 
 
