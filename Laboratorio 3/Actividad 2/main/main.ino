@@ -41,6 +41,11 @@ int maxTemp = 0;
 int minTemp = 100;
 int valorTemp;
 
+//variables que se utilizaran para enviar a la interfaz los valores de temperatura leidos y el modo (pulsador que se presiono) 
+int iactual, imaxima, iminima, ipromedio;
+uint8_t uiactual, uimaxima, uiminima, uipromedio;
+float promedio = 0;
+
 
 void setup() {
   //Setup timer2
@@ -209,7 +214,9 @@ void adcToTemp(int adc_value){
   if(valorTemp > maxTemp){
     maxTemp = valorTemp;
   }
-  
+
+
+          
   // Print the results to the Serial Monitor:
   //Serial.println("sensor = " + String(adc_value));
   //Serial.println("digital = " + String(Vin));
@@ -316,7 +323,7 @@ void imprimirInicio(void)
 //Imprime en display información del estado actual del sistema
 void mostrarEstado(){
   switch(estadoActual){
-    case 1: // Luminosidad actual
+    case 1: // Temperatura actual
       // disable timer compare interrupt
       //TIMSK2 &= ~(1 << OCIE2A);
       lcd.setCursor(0,0);
@@ -324,13 +331,13 @@ void mostrarEstado(){
       lcd.print("   Temp actual   ");
       timerON = 0;
       break;
-    case 2: // Luminosidad max y min
+    case 2: // Temperatura max y min
       lcd.setCursor(0,0);
       //lcd.pri("1-2-3-4-5-6-7-8-");
       lcd.print("    Temp:       ");
       resetTimer();
       break;
-    case 3: // Luminosidad promedio
+    case 3: // Temperatura promedio
       lcd.setCursor(0,0);
       //lcd.pri("1-2-3-4-5-6-7-8-");
       lcd.print(" Temp promedio  ");
@@ -423,6 +430,42 @@ void modoActual(){
     imprimirBrillo();
     
   }
+
+
+
+  // se envian las temperaturas y el modo actual a la interfaz -------------------------------------------------------
+    
+    Serial.write((uint8_t)200);     //se envia un indicador de que va a enviarse la temperatura actual
+    iactual = (int)valorTemp;          //se parsea la temperatura a un valor de 1 byte, ya que el read() lee de a 1 byte,
+    uiactual = (uint8_t)iactual;    //y de esta manera se realiza un manejo mas simple del envio y recepcion de los datos.
+    Serial.write(uiactual);         //se envia la temperatura actual
+    
+    Serial.write((uint8_t)201);     //se envia un indicador de que va a enviarse la temperatura maxima
+    imaxima = (int)maxTemp;
+    uimaxima = (uint8_t)imaxima;
+    Serial.write(uimaxima);         //se envia la temperatura maxima
+    
+    Serial.write((uint8_t)202);     //se envia un indicador de que va a enviarse la temperatura minima
+    iminima = (int)minTemp;
+    uiminima = (uint8_t)iminima;
+    Serial.write(uiminima);         //se envia la temperatura minima
+  
+    Serial.write((uint8_t)203);     //se envia un indicador de que va a enviarse la temperatura promedio  
+    promedio = obtenerPromedio();
+    ipromedio = (int)promedio;
+    uipromedio = (uint8_t)ipromedio;
+    Serial.write(uipromedio);         //se envia la temperatura promedio
+
+    Serial.write((uint8_t)204);     //se envia un indicador de que va a enviarse el modo actual en la placa
+    Serial.write(estadoActual);         //se envia el modo (pulsador que se presiono en la placa)    
+    
+    
+    //se recibe un pedido desde la interfaz --------------------------------
+    if (Serial.available() > 0)     
+    {
+        estadoActual = Serial.read();
+        mostrarEstado();
+    }
 
   
 }

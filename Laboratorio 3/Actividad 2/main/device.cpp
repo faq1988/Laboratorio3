@@ -101,8 +101,7 @@ void key_up_function(int lastKeyDown){
   }
 }
 
-void procesarAdc(int adcValue){
-  Serial.println("teclado");
+void procesarAdc(int adcValue){  
   //Funcion que determina que tecla fue pulsada.
       int key = get_key(adcValue);
       //Serial.println("adcValue: "+String(adcValue));

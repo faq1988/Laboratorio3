@@ -130,8 +130,7 @@ uint8_t buscarPosCanal(uint8_t canal){
    return 10;
 }
 
-void procesarAdc(uint8_t canal){
-  Serial.println("sensor");
+void procesarAdc(uint8_t canal){  
   canal=canalActual;
   if(canal >= 0 && canal <6){
     int aux;
