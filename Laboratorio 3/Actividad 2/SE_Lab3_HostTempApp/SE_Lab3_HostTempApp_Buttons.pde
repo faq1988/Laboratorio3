@@ -4,8 +4,6 @@
  *
  * http://processing.org/learning/topics/buttons.html
  *
- * Modificaciones introducidas por: Sebastián Escarza
- * Sistemas Embebidos - 1ºC de 2012.
  */
 
 class Button

@@ -4,8 +4,6 @@
  * El scroll del gráfico es controlado por las modificaciones a los valores del mismo (si no
  * se producen actualizaciones en los valores de las funciones, el gráfico no se desplaza).
  *
- * Autor: Sebastián Escarza
- * Sistemas Embebidos - 1ºC de 2012.
  */
  
 class ScrollingFcnPlot

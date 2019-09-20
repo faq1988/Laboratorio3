@@ -3,8 +3,6 @@
  * Define una posición (esquina superior izquierda) para la etiqueta, el
  * contenido de la misma y el color para el renderizado del texto.
  *
- * Autor: Sebastián Escarza
- * Sistemas Embebidos - 1ºC de 2012.
  */
 
 class Label
