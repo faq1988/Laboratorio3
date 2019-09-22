@@ -131,7 +131,7 @@ uint8_t buscarPosCanal(uint8_t canal){
 }
 
 void procesarAdc(uint8_t canal){
-  Serial.println("sensor");
+//  Serial.println("sensor");
   canal=canalActual;
   if(canal >= 0 && canal <6){
     int aux;
@@ -175,6 +175,3 @@ ISR(ADC_vect){ //ADC conversion complete
   }
 
 }
-
-
-

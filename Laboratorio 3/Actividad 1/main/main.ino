@@ -23,7 +23,7 @@ const int numCols = 16;
 volatile int posCronX = 4;
 volatile int posCronY = 1;
 
-int ms,s,m,cs, cs_aux; //representan milisegundos, segundos, minutos, centesimas de segundo
+volatile int ms,s,m,cs; //representan milisegundos, segundos, minutos, centesimas de segundo
 volatile int tiempos[10][3]; //tiempos guardados
 volatile int savepos; //posición donde se almacena el ultimo tiempo a guardar
 volatile int visorpos; //posición del tiempo visualizado en MVT
@@ -57,7 +57,7 @@ void setup() {
   TCCR2B |= (1 << CS20) | (1 << CS21)| (1 << CS22);  
   // enable timer compare interrupt
   TIMSK2 |= (1 << OCIE2A);
- sei();
+  sei();
 
   // Setup LCD
   pinMode(analogOutPin, OUTPUT);
@@ -73,7 +73,6 @@ void setup() {
  
 
   //Inicialización de contadores de tiempo
-  cs_aux=0;
   ms=0;
   cs=0;
   m=0;
@@ -172,7 +171,8 @@ void left_key_up(){
     estadoActual -= 1;
   }
   mostrarEstado();
-  }
+}
+
 //soltar tecla right
 void right_key_up(){
    if(estadoActual >= 4){
@@ -373,58 +373,64 @@ void imprimirBrillo(){
 void procesarTimer(){
   if(timerON){
         cs += 1;
-        if(cs >= 100){
-          cs = 0;
+        if(cs>=50){
+          //medio segundo
+          ms+=1;  
+          cs=0;
+        }
+        if(ms >= 2){
           s += 1;  
-    
+          ms=0;
+        }
         if (s >=60)
         {
           s=0;
           m += 1;       
         }
-      }
-  }  
+   }  
 }
 
 //Rutina del timer2
 ISR(TIMER2_COMPA_vect){
-  fnqueue_add(modoActual);
   fnqueue_add(procesarTimer);
+  fnqueue_add(modoActual);
+  
 }
 
 void modoActual(){
 
-  // Modo mensaje inicial
-  if (estadoActual == 0)
-  {
+  switch(estadoActual){
+    case 0:
       //Imprime en display el mensaje inicial  
-      imprimirInicio();      
-  }
- 
- // Funcionalidad segun estadoActual
- else if(estadoActual == 1){
-    // Print the Temp value with the corresponding symbol
-    lcd.setCursor(0,1);
-    lcd.print("     "+String(valorTemp)+" C");
-    
-    // Clean the last 4 characters for a correct display of the results.
-    lcd.print("     ");
-  }
-  else if (estadoActual == 2){
-    lcd.setCursor(0,1);
-    lcd.print("Max "+String(maxTemp)+"  Min "+String(minTemp));
-  }
-  else if(estadoActual == 3){
-    lcd.setCursor(0,1);
-    lcd.print("     " + String(obtenerPromedio()) + "        ");
-  }
-  else if (estadoActual == 4){
-    lcd.setCursor(0,1);
-    imprimirBrillo();
-    
-  }
+      imprimirInicio(); 
+      timerON=1;
+      break;
+    case 1:
+      Serial.println("temp = " + String(valorTemp));
+      Serial.println("ms = " + String(ms));
 
-  
+      // Actualizacion de la pantalla cada medio segundo.
+      if(ms>=1){
+        lcd.setCursor(0,1);
+        lcd.print("     "+String(valorTemp)+" C");
+        
+        // Clean the last 4 characters for a correct display of the results.
+        lcd.print("     ");
+      }
+      break;
+     case 2:
+      lcd.setCursor(0,1);
+      lcd.print("Max "+String(maxTemp)+"  Min "+String(minTemp));
+      break;
+     case 3:
+      lcd.setCursor(0,1);
+      lcd.print("     " + String(obtenerPromedio()) + "        ");
+      break;
+     case 4:
+      lcd.setCursor(0,1);
+      imprimirBrillo();
+      break;
+  }
 }
 
 //  principal
