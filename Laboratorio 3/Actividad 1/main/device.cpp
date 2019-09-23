@@ -39,9 +39,11 @@ int get_key(int adcValue);
 
 
 void teclado_init(void){    	
+    //El teclado va a estar en el canal 0.
 	  adc_cfg cfg_A0;
     cfg_A0.canal = 0;    
 	  cfg_A0.func_callback = procesarAdc;
+    //Llamo a la funcion del conversor A/D adc_init con la estructura cfg_A0.
     adc_init(&cfg_A0);    
 }
 
@@ -102,7 +104,7 @@ void key_up_function(int lastKeyDown){
 }
 
 void procesarAdc(int adcValue){
-  //Serial.println("teclado");
+ // Serial.println("teclado");
   //Funcion que determina que tecla fue pulsada.
       int key = get_key(adcValue);
       //Serial.println("adcValue: "+String(adcValue));

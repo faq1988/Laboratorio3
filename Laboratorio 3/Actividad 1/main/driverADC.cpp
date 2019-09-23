@@ -13,21 +13,28 @@ struct data_canal{
   int dataFromADC = 0;
 };
 
+// Arreglo de estructura de canales.
 struct data_canal *datos_canal[6];
 
 uint8_t alreadyCall = 1;
 
 static int deboucing=0;
-
+  
 bool reemplazarCanal(adc_cfg *cfg);
 
+//Puede ser llamado desde varios modulos.
 int adc_init(adc_cfg *cfg){
+  Serial.print("entro ");
     int exito = 0;
     int tensionRef =1;
     uint8_t canalAux = cfg->canal;
     if(canalAux >= 0 && canalAux <6){
+
+        // Si tiene un callback asignado es porque convirtio algo en ese canalAux.
         if(cfg->func_callback){
+            
             if(!reemplazarCanal(cfg)){
+              //crea una estructura en caso de que no este creada.
               datos_canal[cantCanales] = (struct data_canal *) malloc(sizeof(struct data_canal));
               datos_canal[cantCanales]->canal = canalAux;
               datos_canal[cantCanales]->func_callback = cfg->func_callback;  
@@ -38,39 +45,11 @@ int adc_init(adc_cfg *cfg){
             exito = 1;
         }
     }
+    //Si no esta convirtiendo y tiene exito la creacion del struct
     if(alreadyCall && exito){    
         alreadyCall = 0; //Para no modificar los registros cada vez que se llama a adc_init().
-        //noInterrupts();
         cli();
-        /*ADMUX |= canalAux;
-        //cantCanales += 1;
-        
-        //Tension de referencia por default = VCC
-        ADMUX |= (1 << REFS0);
-        ADMUX &= ~(1 << REFS1);
-        
-        //PRR – Power Reduction Register
-        //Bit 0 – PRADC: Power Reduction ADC
-        //Writing a logic one to this bit shuts down the ADC. The ADC must be disabled before shut down.
-        PRR &= ~(1 << PRADC);
-        
-        //ADCSRA – ADC Control and Status Register A
-        //Bit 7 – ADEN: ADC Enable
-        //Writing this bit to one enables the ADC (this don't start de ADC). 
-        ADCSRA |= (1 << ADEN);
-        //Bits 2:0 – ADPS[2:0]: ADC Prescaler Select Bits
-        //128 Preescaler
-        ADCSRA |= (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
-        //Bit 3 – ADIE: ADC Interrupt Enable
-        ADCSRA |= (1 << ADIE);
-    
-        //Inicializar Conversion
-        //Bit 6 – ADSC: ADC Start Conversion
-        ADCSRA |= (1 << ADSC);
-        */
-
-         ADMUX |= canalAux;
-     
+        ADMUX |= canalAux;
         ADMUX |= (tensionRef << 6);
            
         //PRR – Power Reduction Register
@@ -96,7 +75,6 @@ int adc_init(adc_cfg *cfg){
         //Bit 6 – ADSC: ADC Start Conversion
         ADCSRA |= (1 << ADSC);
         sei();
-        //interrupts();
     }
 
     Serial.begin(9600);
@@ -131,23 +109,19 @@ uint8_t buscarPosCanal(uint8_t canal){
 }
 
 void procesarAdc(uint8_t canal){
-//  Serial.println("sensor");
+ // Serial.println("sensor");
   canal=canalActual;
   if(canal >= 0 && canal <6){
     int aux;
     uint8_t pos = buscarPosCanal(canal);
     if(pos != 10){
-      //noInterrupts();
-	  cli();
+	    cli();
       aux = datos_canal[pos]->dataFromADC;
-      
-	  sei();
-      //interrupts();
+	    sei();
+      //una vez que tiene los datos convertidos del adc, llama a la funcion de callback respectiva.
       datos_canal[pos]->func_callback(aux);
     }
   }
- 
-  
 }
 
 ISR(ADC_vect){ //ADC conversion complete  
@@ -158,10 +132,14 @@ ISR(ADC_vect){ //ADC conversion complete
     uint8_t low, high;
     low = ADCL;
     high = ADCH;
+    //Agrega el dato recientemente convertido al data
     datos_canal[canalActual]->dataFromADC = (high << 8) | low;
+    //Pasa al siguiente canal.
     canalActual = (canalActual + 1) % cantCanales;
-  
+
+    
     high = ADMUX & 0b11110000;
+    //Una vez que cambio el canal lo unico que tengo que cambiar es el registro selector ADMUX.
     ADMUX = high | datos_canal[canalActual]->canal; 
   
     ADCSRA |= (1 << ADSC);    

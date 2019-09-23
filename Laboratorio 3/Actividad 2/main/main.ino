@@ -11,44 +11,35 @@
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 
 int brightness = 204; //brillo del display LCD
-volatile int dimmer; //cuenta tiempo transcurrido ante inactividad o al presionar select
-volatile int pressingSelect; //indica si se esta presionando la tecla select
 volatile int positionCounter=0;// scroll del mensaje inicial
 
 //Identifican las celdas del lcd
 const int numRows = 2;
 const int numCols = 16;
 
-//Posiciones para imprimir cronometro
-volatile int posCronX = 4;
-volatile int posCronY = 1;
-
-int ms,s,m,cs, cs_aux; //representan milisegundos, segundos, minutos, centesimas de segundo
-volatile int tiempos[10][3]; //tiempos guardados
-volatile int savepos; //posición donde se almacena el ultimo tiempo a guardar
-volatile int visorpos; //posición del tiempo visualizado en MVT
+volatile int cs, cs_aux, segundos; //representan segundos, centesimas de segundo
 const int analogOutPin = 10; // Analog output pin that the LED brightness is attached to
 
-int estadoActual = 0; //de 0 a 4, el 0 es para mostrar el mensaje inicial, el 1 MCA, 2 MP, 3 MVT, 4 MAD.
-volatile int timerON = 0; //estado del timer
-int cont=0;
-
-int cantMediciones = 0;
-int mediciones[200];
-int posLibre = 0;
-bool firulito = false;
-int maxTemp = 0;
-int minTemp = 100;
-int valorTemp;
+int estadoActual = 0; //0 mensaje inicial, 1 Temperatura actual, 2 Temp max y minima, 3 Temp promedio, 4 Ajuste de brillo.
 
 //variables que se utilizaran para enviar a la interfaz los valores de temperatura leidos y el modo (pulsador que se presiono) 
 int iactual, imaxima, iminima, ipromedio;
 uint8_t uiactual, uimaxima, uiminima, uipromedio;
 float promedio = 0;
 
+int cantMediciones = 0;
+int mediciones[100];
+int posLibre = 0;
+int maxTemp = 0;
+int minTemp = 100;
+int valorTemp;
+volatile int timerON=0;
+volatile int medir=0;
+volatile int actualizar=0;
+volatile int enviar=0;
 
-void setup() {
-  //Setup timer2
+void timerSetup(){
+    //Setup timer2
   cli();
   //set timer2 interrupt at 100Hz (Interrupciones cada 0,01s)
   TCCR2A = 0;// set entire TCCR2A register to 0
@@ -62,8 +53,13 @@ void setup() {
   TCCR2B |= (1 << CS20) | (1 << CS21)| (1 << CS22);  
   // enable timer compare interrupt
   TIMSK2 |= (1 << OCIE2A);
- sei();
+  sei();
 
+}
+void setup() {
+
+  timerSetup();
+  
   // Setup LCD
   pinMode(analogOutPin, OUTPUT);
   lcd.begin(numCols,numRows);
@@ -76,29 +72,15 @@ void setup() {
   adc_init(&cfg_sensorTemp);
 
  
-
   //Inicialización de contadores de tiempo
-  cs_aux=0;
-  ms=0;
   cs=0;
-  m=0;
-  s=0;
-  dimmer=0;
- 
-  //inicialización de flags  
-  pressingSelect=0;
-  savepos=0;
-  visorpos=0;
+  cs_aux=0;
+  segundos=0;
 
-  //Inicialización del arreglo que mantiene tiempos guardados
-  int i,j;
-  for(i=0;i<10;i++)
-  {
-    for(j=0;j<3;j++)
-    tiempos[i][j]=0;
-  } 
-
-  //Asociación de funciones al callback
+  timerON=0;
+  medir=0;
+  enviar=0;
+  //Asociación de funciones al callback del teclado
   key_down_callback(select_key_down, TECLA_SELECT);
   key_down_callback(left_key_down, TECLA_LEFT);
   key_down_callback(right_key_down, TECLA_RIGHT);
@@ -141,7 +123,6 @@ switch(estadoActual){
     cleanDisplay();
     break;
   case 4:
-    dimmer=0;
     if (brightness>0)
        brightness -= 51;
     delay(100);
@@ -158,7 +139,6 @@ switch(estadoActual){
     cleanDisplay();
     break;
   case 4:
-    dimmer=0;
     if (brightness<255)
         brightness += 51;
         delay(100);
@@ -177,7 +157,8 @@ void left_key_up(){
     estadoActual -= 1;
   }
   mostrarEstado();
-  }
+}
+
 //soltar tecla right
 void right_key_up(){
    if(estadoActual >= 4){
@@ -201,13 +182,19 @@ void cleanDisplay()
 
 
 void adcToTemp(int adc_value){
+  //Obtiene el equivalente en grados.
   float Vin = adcToVin(adc_value);
   
   //valorTemp = VinToTemp(Vin);
   valorTemp=Vin;
   
-  agregarMedicion(valorTemp);
-  
+  //Agrega medicion al arreglo
+  if(medir){
+     agregarMedicion(valorTemp);
+     medir=0;
+  }
+
+  //Actualiza en la minima y maxima temperatura.
   if(valorTemp < minTemp){
     minTemp = valorTemp;
   }
@@ -215,14 +202,9 @@ void adcToTemp(int adc_value){
     maxTemp = valorTemp;
   }
 
-
-          
-  // Print the results to the Serial Monitor:
-  //Serial.println("sensor = " + String(adc_value));
-  //Serial.println("digital = " + String(Vin));
-  //Serial.println("temp = " + String(valorTemp));
 }
 
+//Esta funcion calcula el equivalente a grados para el adc pasado por parametro.
 float adcToVin(float adcValue){
   //return (adcValue*Vref)/1024.0f;
   //float Vref = 5;
@@ -238,10 +220,10 @@ float adcToVin(float adcValue){
 void agregarMedicion(int tempValue){
   mediciones[posLibre] = tempValue;
   posLibre += 1;
-  if(posLibre == 200){
+  if(posLibre == 100){
     posLibre = 0;
   }
-  if(cantMediciones < 200){
+  if(cantMediciones < 100){
     cantMediciones += 1;
   }
   
@@ -259,34 +241,6 @@ float obtenerPromedio(){
     return suma/(float)cantMediciones;
   }
 }
-
-
-//Reinicia el timer
-void resetTimer(){
-  cs = 0;
-  s = 0;
-  cli();
-  TIMSK2 &= ~(1 << OCIE2A); //Disable timer compare interrupt
-  TCNT2  = 0;//initialize counter value to 0
-  TIMSK2 |= (1 << OCIE2A); //Enable timer compare interrupt
-  sei();
-  timerON = 1;
-}
-
-//Imprime en display los números del cronómetro
-void imprimirNumero(int num,int x) {
-  if (num <= 9) {
-    lcd.setCursor(x, posCronY);
-    lcd.print("0");
-    lcd.setCursor(x+1, posCronY);
-    lcd.print(num);
-  } else {
-    lcd.setCursor(x, posCronY);
-    lcd.print(num);
-  }
-}
-
-
 
 //Imprime en display el mensaje inicial
 void imprimirInicio(void)
@@ -315,39 +269,35 @@ void imprimirInicio(void)
     estadoActual=1;
     cleanDisplay();
     mostrarEstado();
+    timerON=1;
     }
   }
+  
   
 }
 
 //Imprime en display información del estado actual del sistema
 void mostrarEstado(){
   switch(estadoActual){
-    case 1: // Temperatura actual
-      // disable timer compare interrupt
-      //TIMSK2 &= ~(1 << OCIE2A);
+    case 1: // Temp actual
       lcd.setCursor(0,0);
       //lcd.pri("1-2-3-4-5-6-7-8-");
       lcd.print("   Temp actual   ");
-      timerON = 0;
       break;
-    case 2: // Temperatura max y min
+    case 2: // Temp max y min
       lcd.setCursor(0,0);
       //lcd.pri("1-2-3-4-5-6-7-8-");
       lcd.print("    Temp:       ");
-      resetTimer();
       break;
-    case 3: // Temperatura promedio
+    case 3: // Temp promedio
       lcd.setCursor(0,0);
       //lcd.pri("1-2-3-4-5-6-7-8-");
       lcd.print(" Temp promedio  ");
-      resetTimer();
       break;
     case 4: // Ajuste dimmer
       lcd.setCursor(0,0);
       //lcd.pri("1-2-3-4-5-6-7-8-");
       lcd.print(" Ajuste dimmer  ");
-      resetTimer();
       break;
   }
 }
@@ -379,61 +329,67 @@ void imprimirBrillo(){
 //Funcion llamada por la rutina de interrupciones.
 void procesarTimer(){
   if(timerON){
-        cs += 1;
-        if(cs >= 100){
-          cs = 0;
-          s += 1;  
-    
-        if (s >=60)
-        {
-          s=0;
-          m += 1;       
-        }
-      }
-  }  
+    cs += 1;
+    cs_aux+=1;
+    if(cs_aux>=15){
+      medir=1;
+      cs_aux=0;  
+    }
+    if(cs >= 100){
+        actualizar=1;
+        enviar=1;
+             segundos += 1;  
+       cs = 0;
+    }   
+  
+  }
 }
 
 //Rutina del timer2
 ISR(TIMER2_COMPA_vect){
-  fnqueue_add(modoActual);
   fnqueue_add(procesarTimer);
+  fnqueue_add(modoActual);
+  
 }
 
 void modoActual(){
 
-  // Modo mensaje inicial
-  if (estadoActual == 0)
-  {
+  switch(estadoActual){
+
+    case 0:
       //Imprime en display el mensaje inicial  
-      imprimirInicio();      
-  }
- 
- // Funcionalidad segun estadoActual
- else if(estadoActual == 1){
-    // Print the Temp value with the corresponding symbol
-    lcd.setCursor(0,1);
-    lcd.print("     "+String(valorTemp)+" C");
-    
-    // Clean the last 4 characters for a correct display of the results.
-    lcd.print("     ");
-  }
-  else if (estadoActual == 2){
-    lcd.setCursor(0,1);
-    lcd.print("Max "+String(maxTemp)+"  Min "+String(minTemp));
-  }
-  else if(estadoActual == 3){
-    lcd.setCursor(0,1);
-    lcd.print("     " + String(obtenerPromedio()) + "        ");
-  }
-  else if (estadoActual == 4){
-    lcd.setCursor(0,1);
-    imprimirBrillo();
-    
+      imprimirInicio(); 
+     
+      break;
+    case 1:
+       // Actualizacion de la pantalla cada segundo.
+         
+       if(actualizar){
+
+        lcd.setCursor(0,1);
+        lcd.print("     "+String(valorTemp)+" C");
+        // Clean the last 4 characters for a correct display of the results.
+        lcd.print("     ");
+        actualizar=0;
+      }
+      break;
+     case 2:
+      lcd.setCursor(0,1); 
+      lcd.print("Max "+String(maxTemp)+"  Min "+String(minTemp));
+      break;
+     case 3:
+      lcd.setCursor(0,1);
+      lcd.print("     " + String(obtenerPromedio()) + "        ");
+      break;
+     case 4:
+      lcd.setCursor(0,1);
+      imprimirBrillo();
+      break;
   }
 
-
-
-  // se envian las temperaturas y el modo actual a la interfaz -------------------------------------------------------
+  if(enviar){
+    Serial.println("Mando al segundo");
+   // se envian las temperaturas y el modo actual a la interfaz -------------------------------------------------------
     
     Serial.write((uint8_t)200);     //se envia un indicador de que va a enviarse la temperatura actual
     iactual = (int)valorTemp;          //se parsea la temperatura a un valor de 1 byte, ya que el read() lee de a 1 byte,
@@ -458,15 +414,15 @@ void modoActual(){
 
     Serial.write((uint8_t)204);     //se envia un indicador de que va a enviarse el modo actual en la placa
     Serial.write(estadoActual);         //se envia el modo (pulsador que se presiono en la placa)    
-    
-    
+    enviar=0;
+  } 
     //se recibe un pedido desde la interfaz --------------------------------
     if (Serial.available() > 0)     
     {
         estadoActual = Serial.read();
         mostrarEstado();
     }
-
+    
   
 }
 
